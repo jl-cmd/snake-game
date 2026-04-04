@@ -207,8 +207,12 @@ function App(){
     if(gsR.current!=="playing"){tsR.current=null;return;}
     const cv=cvR.current; if(!cv){tsR.current=null;return;}
     const rect=cv.getBoundingClientRect();
-    const tx=tsR.current.x-rect.left-rect.width/2;
-    const ty=tsR.current.y-rect.top-rect.height/2;
+    const cellSize=rect.width/GRID;
+    const sn=snR.current;
+    const headPixelX=rect.left+sn[0].x*cellSize+cellSize/2;
+    const headPixelY=rect.top+sn[0].y*cellSize+cellSize/2;
+    const tx=tsR.current.x-headPixelX;
+    const ty=tsR.current.y-headPixelY;
     let nd;
     if(Math.abs(tx)>Math.abs(ty)){nd=tx>0?{x:1,y:0}:{x:-1,y:0};}
     else{nd=ty>0?{x:0,y:1}:{x:0,y:-1};}
