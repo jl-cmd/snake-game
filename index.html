@@ -27,6 +27,7 @@
 const { useState, useEffect, useCallback, useRef } = React;
 
 const GRID = 20, INIT_SPEED = 150, SPEED_INC = 2, MIN_SPEED = 60;
+const MINIMUM_SWIPE_DISTANCE_PIXELS = 20, HOLD_TO_PAUSE_THRESHOLD_MILLISECONDS = 500, DIRECTION_QUEUE_MAX_SIZE = 3;
 const FOODS = ["🍎","🍊","🍇","🍓","🍑","🍒","🫐","🥝","🍌","🍋"];
 const TROPHIES = [5,10,20,35,50,75,100];
 const C = {
@@ -54,7 +55,7 @@ function App(){
   const [combo,setCombo]=useState(0);
 
   const dR=useRef(d), snR=useRef(snake), fR=useRef(food), scR=useRef(score);
-  const spR=useRef(speed), gsR=useRef(gs), ndR=useRef(null), cvR=useRef(null);
+  const spR=useRef(speed), gsR=useRef(gs), directionQueue=useRef([]), cvR=useRef(null);
   const tsR=useRef(null), ltR=useRef(0), coR=useRef(0), hiR=useRef(0);
 
   useEffect(()=>{dR.current=d},[d]);
@@ -69,7 +70,7 @@ function App(){
   const start=useCallback(()=>{
     const s=[{x:12,y:10},{x:11,y:10},{x:10,y:10}];
     setSnake(s); snR.current=s;
-    const dd={x:1,y:0}; setD(dd); dR.current=dd; ndR.current=null;
+    const dd={x:1,y:0}; setD(dd); dR.current=dd; directionQueue.current=[];
     const f=rFood(s); setFood(f); fR.current=f;
     setScore(0); scR.current=0;
     setSpeed(INIT_SPEED); spR.current=INIT_SPEED;
@@ -80,8 +81,9 @@ function App(){
 
   const tick=useCallback(()=>{
     if(gsR.current!=="playing") return;
-    const dd=ndR.current||dR.current;
-    if(ndR.current){dR.current=ndR.current; setD(ndR.current); ndR.current=null;}
+    const queued=directionQueue.current.length>0?directionQueue.current.shift():null;
+    const dd=queued||dR.current;
+    if(queued){dR.current=queued; setD(queued);}
     const sn=snR.current, h=sn[0];
     const nh={x:h.x+dd.x, y:h.y+dd.y};
     if(nh.x<0||nh.x>=GRID||nh.y<0||nh.y>=GRID||sn.some(s=>s.x===nh.x&&s.y===nh.y)){
@@ -183,19 +185,54 @@ function App(){
     return ()=>cancelAnimationFrame(af);
   },[fx]);
 
-  const holdTimerR=useRef(null), heldR=useRef(false);
+  const holdTimerR=useRef(null), heldR=useRef(false), swipedR=useRef(false);
+
+  const enqueueDirection=useCallback((touchClientX,touchClientY)=>{
+    const cv=cvR.current; if(!cv) return;
+    const rect=cv.getBoundingClientRect();
+    const cellSize=rect.width/GRID;
+    const sn=snR.current;
+    const headPixelX=rect.left+sn[0].x*cellSize+cellSize/2;
+    const headPixelY=rect.top+sn[0].y*cellSize+cellSize/2;
+    const deltaX=touchClientX-headPixelX;
+    const deltaY=touchClientY-headPixelY;
+    let newDirection;
+    if(Math.abs(deltaX)>Math.abs(deltaY)){newDirection=deltaX>0?{x:1,y:0}:{x:-1,y:0};}
+    else{newDirection=deltaY>0?{x:0,y:1}:{x:0,y:-1};}
+    const lastQueued=directionQueue.current.length>0?directionQueue.current[directionQueue.current.length-1]:dR.current;
+    const isReversal=(newDirection.x===-lastQueued.x&&newDirection.y===-lastQueued.y);
+    const isDuplicate=(newDirection.x===lastQueued.x&&newDirection.y===lastQueued.y);
+    if(!isReversal&&!isDuplicate&&directionQueue.current.length<DIRECTION_QUEUE_MAX_SIZE){
+      directionQueue.current.push(newDirection);
+    }
+  },[]);
 
   const onTS=useCallback(e=>{
     if(gsR.current==="gameover") return;
     const t=e.touches[0];
     tsR.current={x:t.clientX,y:t.clientY};
     heldR.current=false;
+    swipedR.current=false;
     holdTimerR.current=setTimeout(()=>{
       heldR.current=true;
       if(gsR.current==="playing"){setGs("paused");gsR.current="paused";}
       else if(gsR.current==="paused"){setGs("playing");gsR.current="playing";ltR.current=performance.now();}
-    },400);
+    },HOLD_TO_PAUSE_THRESHOLD_MILLISECONDS);
   },[]);
+
+  const onTM=useCallback(e=>{
+    if(!tsR.current||heldR.current||gsR.current!=="playing") return;
+    const t=e.touches[0];
+    const distanceX=t.clientX-tsR.current.x;
+    const distanceY=t.clientY-tsR.current.y;
+    const swipeDistance=Math.sqrt(distanceX*distanceX+distanceY*distanceY);
+    if(swipeDistance>MINIMUM_SWIPE_DISTANCE_PIXELS){
+      clearTimeout(holdTimerR.current);
+      swipedR.current=true;
+      enqueueDirection(t.clientX,t.clientY);
+      tsR.current={x:t.clientX,y:t.clientY};
+    }
+  },[enqueueDirection]);
 
   const onTE=useCallback(e=>{
     clearTimeout(holdTimerR.current);
@@ -204,22 +241,10 @@ function App(){
       setGs("playing");gsR.current="playing";ltR.current=performance.now();
       tsR.current=null;return;
     }
-    if(gsR.current!=="playing"){tsR.current=null;return;}
-    const cv=cvR.current; if(!cv){tsR.current=null;return;}
-    const rect=cv.getBoundingClientRect();
-    const cellSize=rect.width/GRID;
-    const sn=snR.current;
-    const headPixelX=rect.left+sn[0].x*cellSize+cellSize/2;
-    const headPixelY=rect.top+sn[0].y*cellSize+cellSize/2;
-    const tx=tsR.current.x-headPixelX;
-    const ty=tsR.current.y-headPixelY;
-    let nd;
-    if(Math.abs(tx)>Math.abs(ty)){nd=tx>0?{x:1,y:0}:{x:-1,y:0};}
-    else{nd=ty>0?{x:0,y:1}:{x:0,y:-1};}
-    const cur=dR.current;
-    if(nd.x!==-cur.x||nd.y!==-cur.y) ndR.current=nd;
+    if(gsR.current!=="playing"||swipedR.current){tsR.current=null;return;}
+    enqueueDirection(tsR.current.x,tsR.current.y);
     tsR.current=null;
-  },[]);
+  },[enqueueDirection]);
 
   useEffect(()=>{
     const h=e=>{
@@ -229,7 +254,7 @@ function App(){
       if(e.key==="ArrowDown") nd={x:0,y:1};
       if(e.key==="ArrowLeft") nd={x:-1,y:0};
       if(e.key==="ArrowRight") nd={x:1,y:0};
-      if(nd){const cur=dR.current; if(nd.x!==-cur.x||nd.y!==-cur.y) ndR.current=nd; e.preventDefault();}
+      if(nd){const lastQueued=directionQueue.current.length>0?directionQueue.current[directionQueue.current.length-1]:dR.current; if((nd.x!==-lastQueued.x||nd.y!==-lastQueued.y)&&(nd.x!==lastQueued.x||nd.y!==lastQueued.y)&&directionQueue.current.length<DIRECTION_QUEUE_MAX_SIZE) directionQueue.current.push(nd); e.preventDefault();}
     }; window.addEventListener("keydown",h); return ()=>window.removeEventListener("keydown",h);
   },[]);
 
@@ -279,7 +304,7 @@ function App(){
         position:"relative",borderRadius:16,overflow:"hidden",
         boxShadow:"0 0 60px rgba(34,211,238,0.08),0 8px 32px rgba(0,0,0,0.4)"
       },
-      onTouchStart:onTS, onTouchEnd:onTE
+      onTouchStart:onTS, onTouchMove:onTM, onTouchEnd:onTE
     },
       React.createElement("canvas",{ref:cvR,style:{width:"100%",height:"100%",display:"block"}}),
 
@@ -324,7 +349,7 @@ function App(){
 
     gs==="playing"&&React.createElement("div",{style:{
       position:"absolute",bottom:24,fontSize:13,color:"rgba(148,163,184,0.4)",fontWeight:300,letterSpacing:1
-    }},"TAP direction to turn · HOLD to pause")
+    }},"SWIPE to turn · HOLD to pause")
   );
 }
 
