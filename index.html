@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>Snake</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root {
+    width: 100%; height: 100dvh; overflow: hidden;
+    font-family: 'Outfit', 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: #0f172a; color: #f1f5f9;
+    touch-action: none; user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const { useState, useEffect, useCallback, useRef } = React;
+
+const GRID = 20, INIT_SPEED = 150, SPEED_INC = 2, MIN_SPEED = 60;
+const FOODS = ["🍎","🍊","🍇","🍓","🍑","🍒","🫐","🥝","🍌","🍋"];
+const TROPHIES = [5,10,20,35,50,75,100];
+const C = {
+  bg:"#0f172a", gridLine:"#253347",
+  head:"#22d3ee", body:"#06b6d4", bodyAlt:"#0891b2",
+  glow:"rgba(34,211,238,0.4)", text:"#f1f5f9", dim:"#94a3b8",
+  accent:"#22d3ee", btn:"#0ea5e9", gold:"#fbbf24",
+};
+
+function rFood(sn){
+  let p; do { p={x:Math.floor(Math.random()*GRID),y:Math.floor(Math.random()*GRID)}; }
+  while(sn.some(s=>s.x===p.x&&s.y===p.y));
+  return {...p, emoji:FOODS[Math.floor(Math.random()*FOODS.length)]};
+}
+
+function App(){
+  const [gs,setGs]=useState("menu");
+  const [snake,setSnake]=useState([{x:10,y:10}]);
+  const [d,setD]=useState({x:1,y:0});
+  const [food,setFood]=useState({x:15,y:10,emoji:"🍎"});
+  const [score,setScore]=useState(0);
+  const [hi,setHi]=useState(0);
+  const [speed,setSpeed]=useState(INIT_SPEED);
+  const [fx,setFx]=useState(null);
+  const [combo,setCombo]=useState(0);
+
+  const dR=useRef(d), snR=useRef(snake), fR=useRef(food), scR=useRef(score);
+  const spR=useRef(speed), gsR=useRef(gs), ndR=useRef(null), cvR=useRef(null);
+  const tsR=useRef(null), ltR=useRef(0), coR=useRef(0), hiR=useRef(0);
+
+  useEffect(()=>{dR.current=d},[d]);
+  useEffect(()=>{snR.current=snake},[snake]);
+  useEffect(()=>{fR.current=food},[food]);
+  useEffect(()=>{scR.current=score},[score]);
+  useEffect(()=>{spR.current=speed},[speed]);
+  useEffect(()=>{gsR.current=gs},[gs]);
+  useEffect(()=>{coR.current=combo},[combo]);
+  useEffect(()=>{hiR.current=hi},[hi]);
+
+  const start=useCallback(()=>{
+    const s=[{x:12,y:10},{x:11,y:10},{x:10,y:10}];
+    setSnake(s); snR.current=s;
+    const dd={x:1,y:0}; setD(dd); dR.current=dd; ndR.current=null;
+    const f=rFood(s); setFood(f); fR.current=f;
+    setScore(0); scR.current=0;
+    setSpeed(INIT_SPEED); spR.current=INIT_SPEED;
+    setCombo(0); coR.current=0;
+    setGs("playing"); gsR.current="playing";
+    ltR.current=performance.now();
+  },[]);
+
+  const tick=useCallback(()=>{
+    if(gsR.current!=="playing") return;
+    const dd=ndR.current||dR.current;
+    if(ndR.current){dR.current=ndR.current; setD(ndR.current); ndR.current=null;}
+    const sn=snR.current, h=sn[0];
+    const nh={x:h.x+dd.x, y:h.y+dd.y};
+    if(nh.x<0||nh.x>=GRID||nh.y<0||nh.y>=GRID||sn.some(s=>s.x===nh.x&&s.y===nh.y)){
+      setGs("gameover"); gsR.current="gameover";
+      if(scR.current>hiR.current){setHi(scR.current); hiR.current=scR.current;}
+      return;
+    }
+    const cf=fR.current; let ns;
+    if(nh.x===cf.x&&nh.y===cf.y){
+      ns=[nh,...sn];
+      const nc=coR.current+1; setCombo(nc); coR.current=nc;
+      const pts=Math.max(1,Math.floor(nc/3)+1);
+      const nsc=scR.current+pts; setScore(nsc); scR.current=nsc;
+      const nf=rFood(ns); setFood(nf); fR.current=nf;
+      const nsp=Math.max(MIN_SPEED,INIT_SPEED-Math.floor(nsc/3)*SPEED_INC);
+      setSpeed(nsp); spR.current=nsp;
+      setFx({x:cf.x,y:cf.y,emoji:cf.emoji,time:Date.now()});
+    } else { ns=[nh,...sn.slice(0,-1)]; }
+    setSnake(ns); snR.current=ns;
+  },[]);
+
+  useEffect(()=>{
+    let af; const loop=t=>{
+      if(gsR.current==="playing"&&t-ltR.current>=spR.current){tick();ltR.current=t;}
+      af=requestAnimationFrame(loop);
+    }; af=requestAnimationFrame(loop);
+    return ()=>cancelAnimationFrame(af);
+  },[tick]);
+
+  useEffect(()=>{
+    let af; const render=()=>{
+      const cv=cvR.current; if(!cv){af=requestAnimationFrame(render);return;}
+      const ctx=cv.getContext("2d");
+      const rect=cv.parentElement.getBoundingClientRect();
+      const sz=Math.floor(Math.min(rect.width,rect.height));
+      cv.width=sz; cv.height=sz;
+      const cs=sz/GRID;
+
+      ctx.fillStyle=C.bg; ctx.fillRect(0,0,sz,sz);
+      ctx.strokeStyle=C.gridLine; ctx.lineWidth=0.5;
+      for(let i=0;i<=GRID;i++){
+        ctx.beginPath();ctx.moveTo(i*cs,0);ctx.lineTo(i*cs,sz);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(0,i*cs);ctx.lineTo(sz,i*cs);ctx.stroke();
+      }
+
+      const sn=snR.current, cf=fR.current;
+
+      // food glow + emoji
+      const gr=ctx.createRadialGradient(cf.x*cs+cs/2,cf.y*cs+cs/2,cs*.2,cf.x*cs+cs/2,cf.y*cs+cs/2,cs*1.5);
+      gr.addColorStop(0,"rgba(251,191,36,0.3)"); gr.addColorStop(1,"rgba(251,191,36,0)");
+      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cf.x*cs+cs/2,cf.y*cs+cs/2,cs*1.5,0,Math.PI*2); ctx.fill();
+      ctx.font=`${cs*.75}px sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
+      const pulse=1+Math.sin(Date.now()/300)*.08;
+      ctx.save(); ctx.translate(cf.x*cs+cs/2,cf.y*cs+cs/2); ctx.scale(pulse,pulse);
+      ctx.fillText(cf.emoji,0,0); ctx.restore();
+
+      // snake head glow
+      if(sn.length>0){
+        const hg=ctx.createRadialGradient(sn[0].x*cs+cs/2,sn[0].y*cs+cs/2,cs*.3,sn[0].x*cs+cs/2,sn[0].y*cs+cs/2,cs*2);
+        hg.addColorStop(0,C.glow); hg.addColorStop(1,"rgba(34,211,238,0)");
+        ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(sn[0].x*cs+cs/2,sn[0].y*cs+cs/2,cs*2,0,Math.PI*2); ctx.fill();
+      }
+
+      // snake segments
+      for(let i=sn.length-1;i>=0;i--){
+        const s=sn[i], t=i/Math.max(1,sn.length-1);
+        const r=cs*(i===0?.45:.38-t*.08);
+        ctx.fillStyle=i===0?C.head:i%2===0?C.body:C.bodyAlt;
+        ctx.beginPath(); ctx.roundRect(s.x*cs+cs/2-r,s.y*cs+cs/2-r,r*2,r*2,r*.6); ctx.fill();
+        if(i===0){
+          const dd=dR.current, er=cs*.08, eo=cs*.14;
+          let e1,e2;
+          if(dd.x===1){e1={x:s.x*cs+cs/2+eo,y:s.y*cs+cs/2-eo};e2={x:s.x*cs+cs/2+eo,y:s.y*cs+cs/2+eo};}
+          else if(dd.x===-1){e1={x:s.x*cs+cs/2-eo,y:s.y*cs+cs/2-eo};e2={x:s.x*cs+cs/2-eo,y:s.y*cs+cs/2+eo};}
+          else if(dd.y===-1){e1={x:s.x*cs+cs/2-eo,y:s.y*cs+cs/2-eo};e2={x:s.x*cs+cs/2+eo,y:s.y*cs+cs/2-eo};}
+          else{e1={x:s.x*cs+cs/2-eo,y:s.y*cs+cs/2+eo};e2={x:s.x*cs+cs/2+eo,y:s.y*cs+cs/2+eo};}
+          ctx.fillStyle="#fff";
+          ctx.beginPath();ctx.arc(e1.x,e1.y,er*1.6,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.arc(e2.x,e2.y,er*1.6,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle=C.bg;
+          ctx.beginPath();ctx.arc(e1.x+dd.x*er*.4,e1.y+dd.y*er*.4,er,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.arc(e2.x+dd.x*er*.4,e2.y+dd.y*er*.4,er,0,Math.PI*2);ctx.fill();
+        }
+      }
+
+      // eaten fx
+      if(fx&&Date.now()-fx.time<500){
+        const p=(Date.now()-fx.time)/500;
+        ctx.globalAlpha=1-p; ctx.font=`${cs*(.75+p*.5)}px sans-serif`;
+        ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(fx.emoji,fx.x*cs+cs/2,fx.y*cs+cs/2-p*cs);
+        ctx.globalAlpha=1;
+      }
+
+      ctx.strokeStyle="rgba(34,211,238,0.15)"; ctx.lineWidth=2;
+      ctx.strokeRect(1,1,sz-2,sz-2);
+      af=requestAnimationFrame(render);
+    }; af=requestAnimationFrame(render);
+    return ()=>cancelAnimationFrame(af);
+  },[fx]);
+
+  const holdTimerR=useRef(null), heldR=useRef(false);
+
+  const onTS=useCallback(e=>{
+    if(gsR.current==="gameover") return;
+    const t=e.touches[0];
+    tsR.current={x:t.clientX,y:t.clientY};
+    heldR.current=false;
+    holdTimerR.current=setTimeout(()=>{
+      heldR.current=true;
+      if(gsR.current==="playing"){setGs("paused");gsR.current="paused";}
+      else if(gsR.current==="paused"){setGs("playing");gsR.current="playing";ltR.current=performance.now();}
+    },400);
+  },[]);
+
+  const onTE=useCallback(e=>{
+    clearTimeout(holdTimerR.current);
+    if(!tsR.current||heldR.current){tsR.current=null;return;}
+    if(gsR.current==="paused"){
+      setGs("playing");gsR.current="playing";ltR.current=performance.now();
+      tsR.current=null;return;
+    }
+    if(gsR.current!=="playing"){tsR.current=null;return;}
+    const cv=cvR.current; if(!cv){tsR.current=null;return;}
+    const rect=cv.getBoundingClientRect();
+    const tx=tsR.current.x-rect.left-rect.width/2;
+    const ty=tsR.current.y-rect.top-rect.height/2;
+    let nd;
+    if(Math.abs(tx)>Math.abs(ty)){nd=tx>0?{x:1,y:0}:{x:-1,y:0};}
+    else{nd=ty>0?{x:0,y:1}:{x:0,y:-1};}
+    const cur=dR.current;
+    if(nd.x!==-cur.x||nd.y!==-cur.y) ndR.current=nd;
+    tsR.current=null;
+  },[]);
+
+  useEffect(()=>{
+    const h=e=>{
+      if(gsR.current!=="playing") return;
+      let nd=null;
+      if(e.key==="ArrowUp") nd={x:0,y:-1};
+      if(e.key==="ArrowDown") nd={x:0,y:1};
+      if(e.key==="ArrowLeft") nd={x:-1,y:0};
+      if(e.key==="ArrowRight") nd={x:1,y:0};
+      if(nd){const cur=dR.current; if(nd.x!==-cur.x||nd.y!==-cur.y) ndR.current=nd; e.preventDefault();}
+    }; window.addEventListener("keydown",h); return ()=>window.removeEventListener("keydown",h);
+  },[]);
+
+  const overlay=(children)=>React.createElement("div",{style:{
+    position:"absolute",inset:0,background:"rgba(15,23,42,0.92)",backdropFilter:"blur(12px)",
+    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,borderRadius:16
+  }},children);
+
+  const btn=(text,onClick)=>React.createElement("button",{onClick,style:{
+    marginTop:12,padding:"16px 48px",fontSize:20,fontWeight:700,fontFamily:"inherit",
+    background:`linear-gradient(135deg,${C.btn},${C.accent})`,color:C.bg,
+    border:"none",borderRadius:99,cursor:"pointer",letterSpacing:1,
+    boxShadow:"0 4px 24px rgba(14,165,233,0.4)"
+  }},text);
+
+  return React.createElement("div",{style:{
+    width:"100vw",height:"100dvh",
+    background:`linear-gradient(145deg,${C.bg} 0%,#1a1a2e 50%,${C.bg} 100%)`,
+    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+    overflow:"hidden",position:"relative",touchAction:"none",userSelect:"none"
+  }},
+    gs!=="menu"&&React.createElement("div",{style:{
+      position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"space-between",
+      alignItems:"center",padding:"16px 24px",zIndex:10
+    }},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        React.createElement("span",{style:{fontSize:28,fontWeight:800,color:C.accent,letterSpacing:-1}},score),
+        combo>=3&&React.createElement("span",{style:{
+          fontSize:14,fontWeight:600,color:C.gold,background:"rgba(251,191,36,0.15)",
+          padding:"2px 8px",borderRadius:99
+        }},combo+"x")
+      ),
+      React.createElement("div",{style:{display:"flex",gap:4}},
+        TROPHIES.map((t,i)=>React.createElement("div",{key:i,style:{
+          width:8,height:8,borderRadius:"50%",
+          background:score>=t?C.gold:"rgba(148,163,184,0.2)",
+          transition:"all 0.3s",transform:score>=t?"scale(1.2)":"scale(1)"
+        }}))
+      ),
+      React.createElement("div",{style:{fontSize:14,color:C.dim,fontWeight:400}},
+        "Best: "+Math.max(hi,score))
+    ),
+
+    React.createElement("div",{
+      style:{
+        width:"min(85vw,85dvh,600px)",height:"min(85vw,85dvh,600px)",
+        position:"relative",borderRadius:16,overflow:"hidden",
+        boxShadow:"0 0 60px rgba(34,211,238,0.08),0 8px 32px rgba(0,0,0,0.4)"
+      },
+      onTouchStart:onTS, onTouchEnd:onTE
+    },
+      React.createElement("canvas",{ref:cvR,style:{width:"100%",height:"100%",display:"block"}}),
+
+      gs==="menu"&&overlay([
+        React.createElement("div",{key:"icon",style:{fontSize:64,lineHeight:1}},"🐍"),
+        React.createElement("h1",{key:"title",style:{
+          fontSize:42,fontWeight:900,letterSpacing:-2,margin:0,
+          background:`linear-gradient(135deg,${C.accent},${C.gold})`,
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"
+        }},"SNAKE"),
+        React.createElement("p",{key:"sub",style:{
+          fontSize:16,color:C.dim,margin:0,fontWeight:300,letterSpacing:2,textTransform:"uppercase"
+        }},"Tap to play"),
+        btn("START",start)
+      ]),
+
+      gs==="paused"&&overlay([
+        React.createElement("div",{key:"t",style:{fontSize:32,fontWeight:800,letterSpacing:-1}},"PAUSED"),
+        React.createElement("p",{key:"s",style:{fontSize:15,color:C.dim,fontWeight:300}},"Tap to resume")
+      ]),
+
+      gs==="gameover"&&overlay([
+        React.createElement("div",{key:"icon",style:{fontSize:48,lineHeight:1}},
+          score>=50?"🏆":score>=20?"⭐":score>=10?"👏":"💀"),
+        React.createElement("div",{key:"label",style:{
+          fontSize:20,fontWeight:300,color:C.dim,letterSpacing:2,textTransform:"uppercase"
+        }},"Game Over"),
+        React.createElement("div",{key:"score",style:{
+          fontSize:56,fontWeight:900,letterSpacing:-2,
+          background:`linear-gradient(135deg,${C.accent},${C.gold})`,
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"
+        }},score),
+        score>=hi&&score>0&&React.createElement("div",{key:"best",style:{
+          fontSize:14,fontWeight:600,color:C.gold,background:"rgba(251,191,36,0.12)",
+          padding:"6px 16px",borderRadius:99,letterSpacing:1
+        }},"NEW BEST!"),
+        React.createElement("div",{key:"stats",style:{fontSize:14,color:C.dim,marginTop:4}},
+          "Length: "+snake.length+" · Best: "+Math.max(hi,score)),
+        btn("PLAY AGAIN",start)
+      ])
+    ),
+
+    gs==="playing"&&React.createElement("div",{style:{
+      position:"absolute",bottom:24,fontSize:13,color:"rgba(148,163,184,0.4)",fontWeight:300,letterSpacing:1
+    }},"TAP direction to turn · HOLD to pause")
+  );
+}
+
+ReactDOM.render(React.createElement(App),document.getElementById("root"));
+</script>
+</body>
+</html>
