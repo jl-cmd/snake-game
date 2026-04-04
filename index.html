@@ -221,11 +221,23 @@ function App(){
     if(Math.abs(deltaX)>Math.abs(deltaY)){newDirection=deltaX>0?{x:1,y:0}:{x:-1,y:0};}
     else{newDirection=deltaY>0?{x:0,y:1}:{x:0,y:-1};}
     const lastQueued=directionQueue.current.length>0?directionQueue.current[directionQueue.current.length-1]:dR.current;
-    const isReversal=(newDirection.x===-lastQueued.x&&newDirection.y===-lastQueued.y);
     const isDuplicate=(newDirection.x===lastQueued.x&&newDirection.y===lastQueued.y);
-    if(!isReversal&&!isDuplicate&&directionQueue.current.length<DIRECTION_QUEUE_MAX_SIZE){
-      directionQueue.current.push(newDirection);
+    const isReversal=(newDirection.x===-lastQueued.x&&newDirection.y===-lastQueued.y);
+    if(isDuplicate){tick();return;}
+    if(isReversal){
+      let perpendicularDirection;
+      if(Math.abs(deltaX)>=Math.abs(deltaY)){perpendicularDirection=deltaY>=0?{x:0,y:1}:{x:0,y:-1};}
+      else{perpendicularDirection=deltaX>=0?{x:1,y:0}:{x:-1,y:0};}
+      const isPerpDuplicate=(perpendicularDirection.x===lastQueued.x&&perpendicularDirection.y===lastQueued.y);
+      const isPerpReversal=(perpendicularDirection.x===-lastQueued.x&&perpendicularDirection.y===-lastQueued.y);
+      if(!isPerpDuplicate&&!isPerpReversal){
+        if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE){tick();}
+        directionQueue.current.push(perpendicularDirection);
+      } else {tick();}
+      return;
     }
+    if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE){tick();}
+    directionQueue.current.push(newDirection);
   },[]);
 
   const onTS=useCallback(e=>{
