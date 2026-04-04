@@ -223,7 +223,7 @@ function App(){
     const lastQueued=directionQueue.current.length>0?directionQueue.current[directionQueue.current.length-1]:dR.current;
     const isDuplicate=(newDirection.x===lastQueued.x&&newDirection.y===lastQueued.y);
     const isReversal=(newDirection.x===-lastQueued.x&&newDirection.y===-lastQueued.y);
-    if(isDuplicate){tick();return;}
+    if(isDuplicate) return;
     if(isReversal){
       let perpendicularDirection;
       if(Math.abs(deltaX)>=Math.abs(deltaY)){perpendicularDirection=deltaY>=0?{x:0,y:1}:{x:0,y:-1};}
@@ -231,12 +231,12 @@ function App(){
       const isPerpDuplicate=(perpendicularDirection.x===lastQueued.x&&perpendicularDirection.y===lastQueued.y);
       const isPerpReversal=(perpendicularDirection.x===-lastQueued.x&&perpendicularDirection.y===-lastQueued.y);
       if(!isPerpDuplicate&&!isPerpReversal){
-        if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE){tick();}
+        if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE) return;
         directionQueue.current.push(perpendicularDirection);
-      } else {tick();}
+      }
       return;
     }
-    if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE){tick();}
+    if(directionQueue.current.length>=DIRECTION_QUEUE_MAX_SIZE) return;
     directionQueue.current.push(newDirection);
   },[]);
 
@@ -262,10 +262,26 @@ function App(){
     if(swipeDistance>MINIMUM_SWIPE_DISTANCE_PIXELS){
       clearTimeout(holdTimerR.current);
       swipedR.current=true;
-      enqueueDirection(t.clientX,t.clientY);
+      const cv=cvR.current;
+      if(cv){
+        const rect=cv.getBoundingClientRect();
+        const centerX=rect.left+rect.width/2;
+        const centerY=rect.top+rect.height/2;
+        const deltaX=t.clientX-centerX;
+        const deltaY=t.clientY-centerY;
+        let newDirection;
+        if(Math.abs(deltaX)>Math.abs(deltaY)){newDirection=deltaX>0?{x:1,y:0}:{x:-1,y:0};}
+        else{newDirection=deltaY>0?{x:0,y:1}:{x:0,y:-1};}
+        const lastQueued=directionQueue.current.length>0?directionQueue.current[directionQueue.current.length-1]:dR.current;
+        if((newDirection.x!==lastQueued.x||newDirection.y!==lastQueued.y)&&
+           (newDirection.x!==-lastQueued.x||newDirection.y!==-lastQueued.y)&&
+           directionQueue.current.length<DIRECTION_QUEUE_MAX_SIZE){
+          directionQueue.current.push(newDirection);
+        }
+      }
       tsR.current={x:t.clientX,y:t.clientY};
     }
-  },[enqueueDirection]);
+  },[]);
 
   const onTE=useCallback(e=>{
     clearTimeout(holdTimerR.current);
@@ -381,7 +397,7 @@ function App(){
 
     gs==="playing"&&React.createElement("div",{style:{
       position:"absolute",bottom:24,fontSize:13,color:"rgba(148,163,184,0.4)",fontWeight:300,letterSpacing:1
-    }},"SWIPE to turn · HOLD to pause")
+    }},"TAP or DRAG to steer · HOLD to pause")
   );
 }
 
