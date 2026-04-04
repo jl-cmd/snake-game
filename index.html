@@ -58,6 +58,27 @@ function App(){
   const spR=useRef(speed), gsR=useRef(gs), directionQueue=useRef([]), cvR=useRef(null);
   const tsR=useRef(null), ltR=useRef(0), coR=useRef(0), hiR=useRef(0);
 
+  useEffect(()=>{
+    const rootElement=document.getElementById("root");
+    const getDispatchTarget=()=>rootElement.firstChild||rootElement;
+    const createTestTouch=(clientX,clientY)=>new Touch({identifier:Date.now()+Math.random(),target:getDispatchTarget(),clientX,clientY});
+    window.__SNAKE_TEST__={
+      getGameState:()=>gsR.current,
+      getSnake:()=>snR.current,
+      getDirection:()=>dR.current,
+      getDirectionQueue:()=>directionQueue.current,
+      getScore:()=>scR.current,
+      getSpeed:()=>spR.current,
+      getCanvas:()=>cvR.current,
+      startGame:start,
+      tick,
+      enqueueDirection,
+      fireTouchStart:(clientX,clientY)=>{const el=getDispatchTarget(),t=createTestTouch(clientX,clientY);el.dispatchEvent(new TouchEvent("touchstart",{touches:[t],changedTouches:[t],bubbles:true,cancelable:true}));},
+      fireTouchMove:(clientX,clientY)=>{const el=getDispatchTarget(),t=createTestTouch(clientX,clientY);el.dispatchEvent(new TouchEvent("touchmove",{touches:[t],changedTouches:[t],bubbles:true,cancelable:true}));},
+      fireTouchEnd:(clientX,clientY)=>{const el=getDispatchTarget(),t=createTestTouch(clientX,clientY);el.dispatchEvent(new TouchEvent("touchend",{touches:[],changedTouches:[t],bubbles:true,cancelable:true}));},
+    };
+  });
+
   useEffect(()=>{dR.current=d},[d]);
   useEffect(()=>{snR.current=snake},[snake]);
   useEffect(()=>{fR.current=food},[food]);
